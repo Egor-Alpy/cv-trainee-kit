@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+*.pth
+*.json
+*.png
+dataset/
+photos_raw/
+photos/
+labeled/
+markers/
+.DS_Store
