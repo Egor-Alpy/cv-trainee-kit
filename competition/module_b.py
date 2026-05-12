@@ -95,15 +95,22 @@ clip_model     = clip_model.to(DEVICE).eval()
 print(f"CLIP на {DEVICE}")
 
 
+_embed_error_shown = False
+
 @torch.no_grad()
 def get_embedding(path: str) -> np.ndarray:
+    global _embed_error_shown
     try:
         img    = Image.open(path).convert("RGB")
         inputs = clip_processor(images=img, return_tensors="pt").to(DEVICE)
-        feat   = clip_model.get_image_features(**inputs)
-        feat   = feat / feat.norm(dim=-1, keepdim=True)
+        vision_out = clip_model.vision_model(pixel_values=inputs["pixel_values"])
+        feat = clip_model.visual_projection(vision_out.pooler_output)
+        feat = feat / feat.norm(dim=-1, keepdim=True)
         return feat[0].cpu().numpy()
-    except Exception:
+    except Exception as e:
+        if not _embed_error_shown:
+            print(f"\n[DEBUG] Ошибка загрузки '{path}': {e}")
+            _embed_error_shown = True
         return np.zeros(512, dtype=np.float32)
 
 
@@ -118,6 +125,20 @@ print("Извлекаем CLIP-эмбеддинги...")
 embeddings = np.array([get_embedding(p) for p in tqdm(df["path"].tolist())])
 print(f"Матрица эмбеддингов: {embeddings.shape}")
 
+# Диагностика
+n_zeros = (np.abs(embeddings).sum(axis=1) == 0).sum()
+print(f"Нулевых эмбеддингов (ошибки загрузки): {n_zeros}/{len(embeddings)}")
+if n_zeros > len(embeddings) * 0.5:
+    print("ВНИМАНИЕ: больше половины изображений не загрузились — проверь пути!")
+
+# Фильтруем нулевые векторы из кластеризации
+valid_mask = np.abs(embeddings).sum(axis=1) > 0
+embeddings_clean = embeddings[valid_mask]
+df_clean = df[valid_mask].reset_index(drop=True)
+print(f"Валидных эмбеддингов для кластеризации: {len(embeddings_clean)}")
+embeddings = embeddings_clean
+df = df_clean
+
 # ── Метод локтя ─────────────────────────────────────────────
 K_MAX     = min(15, len(df) - 1)
 K_RANGE   = range(2, K_MAX + 1)
@@ -129,7 +150,9 @@ for k in tqdm(K_RANGE):
     km = KMeans(n_clusters=k, random_state=42, n_init=10)
     lb = km.fit_predict(embeddings)
     inertias.append(km.inertia_)
-    sil_list.append(silhouette_score(embeddings, lb))
+    n_unique = len(set(lb))
+    sil = silhouette_score(embeddings, lb) if n_unique >= 2 else 0.0
+    sil_list.append(sil)
 
 fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
 ax1.plot(list(K_RANGE), inertias, "bo-", lw=2)
@@ -153,25 +176,30 @@ SOLUTIONS = []
 for k in sorted({max(2, OPTIMAL_K - 1), OPTIMAL_K, min(OPTIMAL_K + 1, K_MAX)}):
     km = KMeans(n_clusters=k, random_state=42, n_init=10)
     lb = km.fit_predict(embeddings)
-    sil = silhouette_score(embeddings, lb)
-    db  = davies_bouldin_score(embeddings, lb)
+    n_unique = len(set(lb))
+    sil = silhouette_score(embeddings, lb) if n_unique >= 2 else 0.0
+    db  = davies_bouldin_score(embeddings, lb) if n_unique >= 2 else 0.0
     SOLUTIONS.append({"name": f"KMeans k={k}", "labels": lb, "sil": sil, "db": db})
     print(f"  KMeans k={k}: Sil={sil:.3f} DB={db:.3f} → {Counter(lb)}")
 
 # Алгоритм 2: DBSCAN
 for eps in [0.3, 0.5]:
-    lb = DBSCAN(eps=eps, min_samples=3, metric="cosine").fit_predict(embeddings)
+    lb = DBSCAN(eps=eps, min_samples=2, metric="cosine").fit_predict(embeddings)
     n_cls = len(set(lb)) - (1 if -1 in lb else 0)
-    if n_cls > 1:
+    n_unique = len(set(lb[lb != -1])) if -1 in lb else len(set(lb))
+    if n_cls > 1 and n_unique >= 2:
         sil = silhouette_score(embeddings, lb)
         SOLUTIONS.append({"name": f"DBSCAN eps={eps}", "labels": lb, "sil": sil, "db": 0.0})
         print(f"  DBSCAN eps={eps}: {n_cls} кластеров, Sil={sil:.3f}, шум={sum(lb==-1)}")
+    else:
+        print(f"  DBSCAN eps={eps}: пропущен (кластеров < 2)")
 
 # Алгоритм 3: Agglomerative
 for linkage, k in [("ward", OPTIMAL_K), ("complete", max(2, OPTIMAL_K - 1))]:
     lb  = AgglomerativeClustering(n_clusters=k, linkage=linkage).fit_predict(embeddings)
-    sil = silhouette_score(embeddings, lb)
-    db  = davies_bouldin_score(embeddings, lb)
+    n_unique = len(set(lb))
+    sil = silhouette_score(embeddings, lb) if n_unique >= 2 else 0.0
+    db  = davies_bouldin_score(embeddings, lb) if n_unique >= 2 else 0.0
     SOLUTIONS.append({"name": f"Agglomerative {linkage} k={k}", "labels": lb, "sil": sil, "db": db})
     print(f"  Aggl {linkage} k={k}: Sil={sil:.3f} DB={db:.3f}")
 
@@ -307,6 +335,9 @@ class SeedDataset(torch.utils.data.Dataset):
 # ── Собираем данные из seeds/ ────────────────────────────────
 all_paths, all_labels = [], []
 cls_to_idx = {c: i for i, c in enumerate(classes)}
+idx_to_class = {str(v): k for k, v in cls_to_idx.items()}
+with open(OUT / "class_names.json", "w", encoding="utf-8") as f:
+    json.dump(idx_to_class, f, ensure_ascii=False, indent=2)
 
 for cls in classes:
     cls_dir = Path(SEEDS_DIR) / cls
@@ -327,11 +358,11 @@ sampler = WeightedRandomSampler(weights, num_samples=len(weights))
 
 train_loader = DataLoader(
     SeedDataset(X_tr, y_tr, AUG_PRESETS[AUGMENTATION]),
-    batch_size=BATCH_SIZE, sampler=sampler, num_workers=4, pin_memory=True,
+    batch_size=BATCH_SIZE, sampler=sampler, num_workers=0, pin_memory=False,
 )
 val_loader = DataLoader(
     SeedDataset(X_va, y_va, VAL_TF),
-    batch_size=64, shuffle=False, num_workers=4, pin_memory=True,
+    batch_size=64, shuffle=False, num_workers=0, pin_memory=False,
 )
 
 # ── Модель ───────────────────────────────────────────────────
@@ -465,7 +496,7 @@ with torch.no_grad():
     for imgs, _ in DataLoader(
         SeedDataset(df["path"].tolist(),
                     [0]*len(df), VAL_TF),
-        batch_size=64, num_workers=4,
+        batch_size=64, num_workers=0,
     ):
         out = model(imgs.to(DEVICE))
         all_emb_preds.extend(out.argmax(1).cpu().numpy())
