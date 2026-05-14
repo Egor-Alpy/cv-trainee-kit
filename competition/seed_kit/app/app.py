@@ -58,7 +58,8 @@ def run_detection(img_rgb: np.ndarray, conf: float, lock_timeout: float = 15):
         return img_rgb, Counter()
     finally:
         _predict_lock.release()
-    out = img_rgb.copy()
+    # рисуем в BGR, чтобы цвета совпадали с CSS-переменными
+    out = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2BGR)
     counts = Counter()
     for box in results[0].boxes:
         cls_id   = int(box.cls[0])
@@ -73,7 +74,7 @@ def run_detection(img_rgb: np.ndarray, conf: float, lock_timeout: float = 15):
         cv2.rectangle(out, (x1, y1 - th - 8), (x1 + tw + 6, y1), color, -1)
         cv2.putText(out, lbl, (x1 + 3, y1 - 4),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.48, (255, 255, 255), 1)
-    return out, counts
+    return cv2.cvtColor(out, cv2.COLOR_BGR2RGB), counts
 
 def stats_html(counts: Counter, conf: float = CONF_DEFAULT) -> str:
     total  = sum(counts.values())

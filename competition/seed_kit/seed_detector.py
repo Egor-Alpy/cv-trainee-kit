@@ -147,8 +147,7 @@ if RUN_LABEL:
     skipped = 0
 
     for p, cls_name in tqdm(img_classes.items()):
-        import cv2 as _cv2
-        img_bgr = _cv2.imread(str(p))
+        img_bgr = cv2.imread(str(p))
         if img_bgr is None:
             skipped += 1
             continue
@@ -169,10 +168,16 @@ if RUN_LABEL:
     cls_to_id = {c: i for i, c in enumerate(CLASSES)}
     stratify  = [x[1] for x in labeled]
 
-    train_idx, val_idx = train_test_split(
-        range(len(labeled)), test_size=0.2,
-        random_state=42, stratify=stratify,
-    )
+    try:
+        train_idx, val_idx = train_test_split(
+            range(len(labeled)), test_size=0.2,
+            random_state=42, stratify=stratify,
+        )
+    except ValueError:
+        print("  [предупреждение] стратификация невозможна — слишком мало примеров одного класса, делим без стратификации")
+        train_idx, val_idx = train_test_split(
+            range(len(labeled)), test_size=0.2, random_state=42,
+        )
 
     for split in ["train", "val"]:
         (DATASET / "images" / split).mkdir(parents=True, exist_ok=True)
@@ -256,9 +261,11 @@ if RUN_TRAIN:
 
     best_pt  = Path(OUTPUT_DIR) / "train" / "weights" / "best.pt"
     final_pt = OUT / "best_model.pt"
-    if best_pt.exists():
-        shutil.copy2(best_pt, final_pt)
-        print(f"\nМодель: {final_pt}")
+    if not best_pt.exists():
+        print(f"best.pt не найден в {best_pt} — обучение не сохранило модель")
+        raise SystemExit(1)
+    shutil.copy2(best_pt, final_pt)
+    print(f"\nМодель: {final_pt}")
 
     print("\nОценка на валидации...")
     val_model = YOLO(str(final_pt))
