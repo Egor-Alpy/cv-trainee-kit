@@ -1,0 +1,978 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CV Competition — Анализ семян</title>
+<style>
+  :root {
+    --bg:       #0F0F0F;
+    --surface:  #1A1A1A;
+    --card:     #242424;
+    --border:   #333333;
+    --ink:      #F0EDE8;
+    --ink2:     #A0A0A0;
+    --accent:   #F97316;
+    --blue:     #3B82F6;
+    --green:    #22C55E;
+    --purple:   #A855F7;
+    --yellow:   #EAB308;
+    --font:     'Inter', 'Segoe UI', system-ui, sans-serif;
+    --mono:     'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font);
+    height: 100vh;
+    overflow: hidden;
+    user-select: none;
+  }
+
+  /* ── SLIDES ── */
+  .deck { width: 100%; height: 100vh; position: relative; }
+
+  .slide {
+    position: absolute;
+    inset: 0;
+    display: none;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 60px 80px;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
+  .slide.active {
+    display: flex;
+    opacity: 1;
+  }
+
+  /* ── NAVIGATION ── */
+  .nav {
+    position: fixed;
+    bottom: 32px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    z-index: 100;
+  }
+  .nav button {
+    background: var(--card);
+    border: 1px solid var(--border);
+    color: var(--ink);
+    width: 44px; height: 44px;
+    border-radius: 50%;
+    font-size: 18px;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .nav button:hover { background: var(--border); border-color: var(--accent); }
+  .nav button:disabled { opacity: 0.3; cursor: default; }
+
+  .slide-counter {
+    font-size: 13px;
+    color: var(--ink2);
+    font-variant-numeric: tabular-nums;
+    min-width: 60px;
+    text-align: center;
+  }
+
+  /* ── PROGRESS BAR ── */
+  .progress {
+    position: fixed;
+    top: 0; left: 0;
+    height: 3px;
+    background: var(--accent);
+    transition: width 0.3s ease;
+    z-index: 100;
+  }
+
+  /* ── SLIDE KEYBOARD HINT ── */
+  .key-hint {
+    position: fixed;
+    bottom: 32px;
+    right: 40px;
+    font-size: 11px;
+    color: var(--ink2);
+    opacity: 0.5;
+  }
+
+  /* ── TYPOGRAPHY ── */
+  .label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 16px;
+  }
+  .label.blue  { color: var(--blue); }
+  .label.green { color: var(--green); }
+  .label.purple{ color: var(--purple); }
+  .label.yellow{ color: var(--yellow); }
+
+  h1 {
+    font-size: clamp(36px, 4vw, 64px);
+    font-weight: 700;
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+    margin-bottom: 24px;
+  }
+  h2 {
+    font-size: clamp(26px, 3vw, 44px);
+    font-weight: 700;
+    line-height: 1.15;
+    letter-spacing: -0.02em;
+    margin-bottom: 20px;
+  }
+  h3 {
+    font-size: 18px;
+    font-weight: 600;
+    margin-bottom: 12px;
+  }
+  p {
+    font-size: 17px;
+    line-height: 1.65;
+    color: var(--ink2);
+    max-width: 700px;
+  }
+  p strong { color: var(--ink); }
+  .large-p {
+    font-size: clamp(16px, 1.5vw, 20px);
+    line-height: 1.7;
+    max-width: 800px;
+  }
+
+  /* ── TAGS ── */
+  .tag {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 600;
+    border: 1px solid;
+    margin: 4px;
+  }
+  .tag.orange { color: var(--accent); border-color: var(--accent); }
+  .tag.blue   { color: var(--blue);   border-color: var(--blue); }
+  .tag.green  { color: var(--green);  border-color: var(--green); }
+  .tag.purple { color: var(--purple); border-color: var(--purple); }
+  .tag.yellow { color: var(--yellow); border-color: var(--yellow); }
+
+  /* ── CARDS GRID ── */
+  .grid {
+    display: grid;
+    gap: 20px;
+    width: 100%;
+    max-width: 1000px;
+  }
+  .grid-2 { grid-template-columns: 1fr 1fr; }
+  .grid-3 { grid-template-columns: 1fr 1fr 1fr; }
+  .grid-4 { grid-template-columns: 1fr 1fr 1fr 1fr; }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+  }
+  .card h3 { margin-bottom: 8px; }
+  .card p { font-size: 14px; line-height: 1.6; }
+
+  /* ── CODE BLOCK ── */
+  pre {
+    background: #0A0A0A;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px 24px;
+    font-family: var(--mono);
+    font-size: 13px;
+    line-height: 1.6;
+    color: #CBD5E1;
+    overflow-x: auto;
+    max-width: 100%;
+  }
+  .kw  { color: #C084FC; }
+  .fn  { color: #60A5FA; }
+  .str { color: #86EFAC; }
+  .cm  { color: #4B5563; font-style: italic; }
+  .num { color: #FCD34D; }
+
+  /* ── PIPELINE FLOW ── */
+  .flow {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    flex-wrap: nowrap;
+    max-width: 960px;
+  }
+  .flow-step {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 20px;
+    font-size: 14px;
+    font-weight: 600;
+    text-align: center;
+    min-width: 120px;
+    flex: 1;
+  }
+  .flow-step small {
+    display: block;
+    font-weight: 400;
+    color: var(--ink2);
+    font-size: 12px;
+    margin-top: 4px;
+  }
+  .flow-arrow {
+    color: var(--ink2);
+    font-size: 20px;
+    padding: 0 8px;
+    flex-shrink: 0;
+  }
+
+  /* ── STAT BLOCKS ── */
+  .stat { text-align: center; }
+  .stat .val {
+    font-size: clamp(32px, 4vw, 56px);
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 1;
+    margin-bottom: 6px;
+  }
+  .stat .desc { font-size: 13px; color: var(--ink2); }
+
+  /* ── LIST ── */
+  ul.check {
+    list-style: none;
+    padding: 0;
+  }
+  ul.check li {
+    padding: 6px 0;
+    font-size: 16px;
+    color: var(--ink2);
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  ul.check li::before {
+    content: '→';
+    color: var(--accent);
+    flex-shrink: 0;
+    font-weight: 700;
+  }
+  ul.check li strong { color: var(--ink); }
+
+  /* ── DIVIDER ── */
+  hr.dim {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 24px 0;
+    width: 100%;
+    max-width: 960px;
+  }
+
+  /* ── SPECIFIC SLIDES ── */
+
+  /* Title */
+  .slide-title { background: radial-gradient(ellipse at 60% 40%, #1F1300 0%, var(--bg) 60%); }
+  .slide-title h1 { max-width: 800px; }
+  .slide-title .subtitle {
+    font-size: 20px;
+    color: var(--ink2);
+    margin-bottom: 32px;
+  }
+
+  /* Module accent lines */
+  .slide[data-mod="A"] { border-top: 3px solid var(--accent); }
+  .slide[data-mod="B"] { border-top: 3px solid var(--blue); }
+  .slide[data-mod="C"] { border-top: 3px solid var(--green); }
+  .slide[data-mod="D"] { border-top: 3px solid var(--purple); }
+
+  .content-wide {
+    width: 100%;
+    max-width: 960px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 32px;
+    width: 100%;
+    max-width: 960px;
+    align-items: start;
+  }
+
+  .badge {
+    display: inline-block;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 3px 10px;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--ink2);
+    margin: 2px;
+  }
+
+  /* Number highlight */
+  .num-big {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--ink);
+  }
+
+  .icon { font-size: 32px; margin-bottom: 12px; }
+
+</style>
+</head>
+<body>
+
+<div class="progress" id="progress"></div>
+
+<div class="deck" id="deck">
+
+  <!-- ────────────────────────────────────────────────────────
+       SLIDE 1 — TITLE
+  ──────────────────────────────────────────────────────────── -->
+  <div class="slide slide-title active">
+    <div class="label">Computer Vision · Соревнование</div>
+    <h1>Распознавание и детекция<br>семян с помощью CV</h1>
+    <p class="subtitle">4 модуля: от анализа библиотеки до реального времени</p>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:40px">
+      <span class="tag orange">Модуль A — Анализ данных</span>
+      <span class="tag blue">Модуль B — Кластеризация + ML</span>
+      <span class="tag green">Модуль C — Авторазметка</span>
+      <span class="tag purple">Модуль D — Детекция + Приложение</span>
+    </div>
+    <div class="grid grid-4" style="max-width:720px">
+      <div class="stat"><div class="val" style="color:var(--accent)">CLIP</div><div class="desc">zero-shot классификация</div></div>
+      <div class="stat"><div class="val" style="color:var(--blue)">KMeans</div><div class="desc">3 алгоритма кластеризации</div></div>
+      <div class="stat"><div class="val" style="color:var(--green)">OpenCV</div><div class="desc">авторазметка без разметчика</div></div>
+      <div class="stat"><div class="val" style="color:var(--purple)">YOLOv8</div><div class="desc">real-time детекция</div></div>
+    </div>
+  </div>
+
+  <!-- ────────────────────────────────────────────────────────
+       SLIDE 2 — OVERVIEW / PIPELINE
+  ──────────────────────────────────────────────────────────── -->
+  <div class="slide">
+    <div class="label">Общая схема</div>
+    <h2>Четыре модуля — одна система</h2>
+    <div class="flow" style="margin-bottom:36px">
+      <div class="flow-step" style="border-color:var(--accent)">
+        <span style="color:var(--accent)">Модуль A</span>
+        <small>Библиотека изображений</small>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step" style="border-color:var(--blue)">
+        <span style="color:var(--blue)">Модуль B</span>
+        <small>Кластеризация + EfficientNet</small>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step" style="border-color:var(--green)">
+        <span style="color:var(--green)">Модуль C</span>
+        <small>Авторазметка</small>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step" style="border-color:var(--purple)">
+        <span style="color:var(--purple)">Модуль D</span>
+        <small>YOLOv8 + Приложение</small>
+      </div>
+    </div>
+    <div class="grid grid-2" style="max-width:800px">
+      <div class="card">
+        <div class="label">Вход</div>
+        <ul class="check">
+          <li><strong>Модули A/B:</strong> папка с подпапками по классам (~200+ фото)</li>
+          <li><strong>Модули C/D:</strong> 200 фото без разметки в одной папке</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="label">Выход</div>
+        <ul class="check">
+          <li><strong>CSV</strong> — библиотека изображений с метаданными</li>
+          <li><strong>best_model.pth</strong> — EfficientNet B3 классификатор</li>
+          <li><strong>best_model.pt</strong> — YOLOv8n детектор</li>
+          <li><strong>Web-приложение</strong> — Gradio, localhost:7860</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- ────────────────────────────────────────────────────────
+       SLIDE 3 — MODULE A: ОБЗОР
+  ──────────────────────────────────────────────────────────── -->
+  <div class="slide" data-mod="A">
+    <div class="label">Модуль A</div>
+    <h2>Анализ библиотеки изображений</h2>
+    <div class="two-col">
+      <div>
+        <ul class="check" style="margin-bottom:20px">
+          <li>Загружает все фото из папок-классов, считает метаданные: <strong>разрешение, размер файла</strong></li>
+          <li>Определяет <strong>цветность</strong> (разница RGB каналов) и <strong>насыщенность</strong> (HSV saturation)</li>
+          <li>Строит <strong>CLIP-эмбеддинги</strong> (512-мерные векторы) для каждого фото</li>
+          <li>Формирует <strong>Labeled_Set</strong> — по 30 фото на класс для дальнейшего обучения</li>
+          <li>Сохраняет <strong>CSV-отчёт</strong> и гистограммы по размерам и цветности</li>
+        </ul>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <span class="badge">Image_Library_Description.csv</span>
+          <span class="badge">Labeled_Set/</span>
+          <span class="badge">hist_size.png</span>
+          <span class="badge">hist_color.png</span>
+          <span class="badge">sample_grid.png</span>
+        </div>
+      </div>
+      <div>
+        <pre><code><span class="cm"># Определение цветности изображения</span>
+<span class="kw">def</span> <span class="fn">is_color</span>(path) -> <span class="fn">bool</span>:
+    img = np.array(Image.open(path))
+    r, g, b = img[:,:,<span class="num">0</span>], img[:,:,<span class="num">1</span>], img[:,:,<span class="num">2</span>]
+    diff = (np.mean(np.abs(r-g))
+          + np.mean(np.abs(r-b))
+          + np.mean(np.abs(g-b))) / <span class="num">3</span>
+    <span class="kw">return</span> diff > <span class="num">8.0</span>
+
+<span class="cm"># Labeled_Set: первые 30 фото на класс</span>
+<span class="kw">for</span> cls <span class="kw">in</span> classes:
+    <span class="kw">if</span> labeled_count[cls] < MAX_PER_CLASS:
+        shutil.copy2(src, LABELED / cls / name)</code></pre>
+      </div>
+    </div>
+  </div>
+
+  <!-- ────────────────────────────────────────────────────────
+       SLIDE 4 — MODULE A: CLIP
+  ──────────────────────────────────────────────────────────── -->
+  <div class="slide" data-mod="A">
+    <div class="label">Модуль A · CLIP</div>
+    <h2>Что такое CLIP и зачем он здесь</h2>
+    <div class="two-col">
+      <div>
+        <p class="large-p" style="margin-bottom:20px">
+          <strong>CLIP</strong> — мультимодальная модель OpenAI, обученная сопоставлять изображения с текстовыми описаниями.
+          Позволяет получить универсальный <strong>512-мерный вектор</strong> для любого изображения без дополнительного обучения.
+        </p>
+        <ul class="check">
+          <li>В модуле A: вычисляем эмбеддинги <strong>только для анализа</strong> — понять как похожи изображения в пространстве признаков</li>
+          <li>В модуле B: те же эмбеддинги используются для <strong>кластеризации</strong></li>
+          <li>В модуле C: CLIP делает <strong>zero-shot классификацию</strong> без обучения</li>
+        </ul>
+        <div style="margin-top:16px">
+          <span class="badge">openai/clip-vit-base-patch32</span>
+          <span class="badge">512-dim vector</span>
+          <span class="badge">zero-shot</span>
+        </div>
+      </div>
+      <div>
+        <pre><code><span class="cm"># Загрузка CLIP (один раз)</span>
+clip_model = CLIPModel.from_pretrained(
+    <span class="str">"openai/clip-vit-base-patch32"</span>
+).to(DEVICE).eval()
+
+<span class="cm"># Получение эмбеддинга изображения</span>
+inputs = processor(
+    images=pil_img, return_tensors=<span class="str">"pt"</span>
+).to(DEVICE)
+
+<span class="kw">with</span> torch.no_grad():
+    emb = clip_model.get_image_features(**inputs)
+    emb = emb / emb.norm(dim=-<span class="num">1</span>, keepdim=<span class="kw">True</span>)
+
+<span class="cm"># emb.shape → [1, 512]</span>
+<span class="cm"># Нормализован: можно считать косинусное сходство</span></code></pre>
+      </div>
+    </div>
+  </div>
+
+  <!-- ────────────────────────────────────────────────────────
+       SLIDE 5 — MODULE B: КЛАСТЕРИЗАЦИЯ
+  ──────────────────────────────────────────────────────────── -->
+  <div class="slide" data-mod="B">
+    <div class="label blue">Модуль B · Часть 1</div>
+    <h2>Кластеризация без учителя</h2>
+    <div class="content-wide">
+      <div class="flow">
+        <div class="flow-step">CLIP<br>эмбеддинги<br><small>512-dim</small></div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step">PCA<br>снижение размерн.<br><small>50-dim</small></div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step">3 алгоритма<br>кластеризации</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step">TSNE 2D<br>UMAP 3D<br><small>визуализация</small></div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step">Метрики<br>Silhouette<br>Davies-Bouldin</div>
+      </div>
+      <div class="grid grid-3">
+        <div class="card">
+          <div class="label blue">KMeans</div>
+          <h3>Разбиение на K кластеров</h3>
+          <p>Elbow-метод находит оптимальное K. Итеративно минимизирует сумму расстояний до центроида. Быстрый, хорошо работает когда кластеры сферические.</p>
+        </div>
+        <div class="card">
+          <div class="label blue">DBSCAN</div>
+          <h3>Плотностная кластеризация</h3>
+          <p>Находит кластеры произвольной формы. Шумовые точки помечает как -1. Параметр eps — радиус окрестности. Не нужно указывать K заранее.</p>
+        </div>
+        <div class="card">
+          <div class="label blue">Agglomerative</div>
+          <h3>Иерархическая снизу вверх</h3>
+          <p>Начинает с каждой точки как отдельного кластера, объединяет ближайшие. Ward-линкаж минимизирует дисперсию внутри кластеров.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ────────────────────────────────────────────────────────
+       SLIDE 6 — MODULE B: EFFICIENTNET
+  ──────────────────────────────────────────────────────────── -->
+  <div class="slide" data-mod="B">
+    <div class="label blue">Модуль B · Часть 2</div>
+    <h2>EfficientNet B3 — Transfer Learning</h2>
+    <div class="two-col">
+      <div>
+        <ul class="check" style="margin-bottom:24px">
+          <li><strong>Претренированная модель</strong> на ImageNet (~10.8M параметров). Доообучается только классификационная голова.</li>
+          <li><strong>WeightedRandomSampler</strong> — решает проблему дисбаланса классов: редкие классы семплируются чаще</li>
+          <li><strong>Аугментации</strong> (medium): горизонтальный flip, поворот ±15°, яркость/контраст, нормализация ImageNet</li>
+          <li><strong>AdamW</strong>, lr=3e-4, 20 эпох, CrossEntropyLoss</li>
+        </ul>
+        <div class="grid grid-3" style="max-width:400px;gap:12px">
+          <div class="stat">
+            <div class="val" style="color:var(--blue);font-size:32px">F1</div>
+            <div class="desc">macro-averaged</div>
+          </div>
+          <div class="stat">
+            <div class="val" style="color:var(--blue);font-size:32px">ROC</div>
+            <div class="desc">AUC per class</div>
+          </div>
+          <div class="stat">
+            <div class="val" style="color:var(--blue);font-size:32px">CM</div>
+            <div class="desc">confusion matrix</div>
+          </div>
+        </div>
+      </div>
+      <div>
+        <pre><code><span class="cm"># EfficientNet B3 из timm</span>
+model = timm.create_model(
+    <span class="str">"efficientnet_b3"</span>,
+    pretrained=<span class="kw">True</span>,
+    num_classes=len(classes)
+).to(DEVICE)
+
+<span class="cm"># Веса для дисбаланса классов</span>
+counts = Counter(dataset.targets)
+weights = [<span class="num">1.0</span>/counts[t] <span class="kw">for</span> t <span class="kw">in</span> dataset.targets]
+sampler = WeightedRandomSampler(
+    weights, len(weights)
+)
+
+<span class="cm"># Обучение</span>
+optimizer = torch.optim.AdamW(
+    model.parameters(), lr=<span class="num">3e-4</span>
+)
+criterion = nn.CrossEntropyLoss()</code></pre>
+      </div>
+    </div>
+  </div>
+
+  <!-- ────────────────────────────────────────────────────────
+       SLIDE 7 — MODULE C: ПРОБЛЕМА И ПОДХОД
+  ──────────────────────────────────────────────────────────── -->
+  <div class="slide" data-mod="C">
+    <div class="label green">Модуль C</div>
+    <h2>Авторазметка: 200 фото без меток</h2>
+    <div class="content-wide">
+      <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px 28px;max-width:700px">
+        <p style="font-size:16px;line-height:1.7">
+          <strong>Проблема:</strong> YOLO требует размеченный датасет — для каждого фото нужны bounding boxes с классом.
+          Размечать 200 фото вручную — это часы работы. Решение: <strong>автоматическая разметка в два шага</strong>.
+        </p>
+      </div>
+      <div class="flow">
+        <div class="flow-step" style="border-color:var(--green)">
+          200 фото<br>без меток
+        </div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step" style="border-color:var(--green)">
+          <span style="color:var(--green)">CLIP</span><br>zero-shot<br><small>какой класс?</small>
+        </div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step" style="border-color:var(--green)">
+          <span style="color:var(--green)">OpenCV</span><br>контуры<br><small>где зёрна?</small>
+        </div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step" style="border-color:var(--green)">
+          YOLO<br>датасет<br><small>class x y w h</small>
+        </div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step" style="border-color:var(--purple)">
+          <span style="color:var(--purple)">YOLOv8n</span><br>обучение
+        </div>
+      </div>
+      <div class="grid grid-2">
+        <div class="card">
+          <div class="label green">Шаг 1 — CLIP zero-shot</div>
+          <p>Для каждого фото сравниваем со строками <em>"a photo of barley grains on a surface"</em>, <em>"buckwheat grains"</em>, <em>"rice grains"</em>. Softmax → выбираем класс с наибольшей вероятностью. <strong>Без обучения.</strong></p>
+        </div>
+        <div class="card">
+          <div class="label green">Шаг 2 — OpenCV контуры</div>
+          <p>Отвечает на вопрос "где именно зёрна?". Бинаризация по Отсу, морфологические операции, findContours. Фильтрация по площади и aspect ratio. Результат → YOLO bbox.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ────────────────────────────────────────────────────────
+       SLIDE 8 — MODULE C: OPENCV ДЕТАЛИ
+  ──────────────────────────────────────────────────────────── -->
+  <div class="slide" data-mod="C">
+    <div class="label green">Модуль C · OpenCV</div>
+    <h2>Алгоритм детекции контуров</h2>
+    <div class="two-col">
+      <div>
+        <ul class="check">
+          <li><strong>Grayscale + GaussianBlur(7×7)</strong> — убираем шум перед пороговой бинаризацией</li>
+          <li><strong>Otsu thresholding</strong> — автоматически находит порог между тёмным фоном и светлыми зёрнами (и наоборот). Алгоритм пробует оба варианта (inv / non-inv), берёт тот что даёт больше контуров</li>
+          <li><strong>MORPH_CLOSE → MORPH_OPEN</strong> — сначала закрываем разрывы внутри зерна, затем убираем мелкий шум</li>
+          <li><strong>findContours(RETR_EXTERNAL)</strong> — только внешние контуры, без вложенных</li>
+          <li><strong>Фильтры:</strong> площадь > 300 px², area/frame &lt; 15%, aspect ratio 0.15–6.5</li>
+          <li><strong>boundingRect</strong> → нормализованный YOLO bbox: <span class="badge">class_id xc yc w h</span></li>
+        </ul>
+      </div>
+      <div>
+        <pre><code><span class="kw">def</span> <span class="fn">detect_seeds</span>(img_bgr):
+    gray = cv2.cvtColor(img_bgr, COLOR_BGR2GRAY)
+    blur = cv2.GaussianBlur(gray, (<span class="num">7</span>,<span class="num">7</span>), <span class="num">0</span>)
+
+    best_boxes = []
+    <span class="kw">for</span> inv <span class="kw">in</span> [<span class="kw">True</span>, <span class="kw">False</span>]:  <span class="cm"># оба варианта</span>
+        flag = THRESH_BINARY_INV + THRESH_OTSU \
+               <span class="kw">if</span> inv <span class="kw">else</span> THRESH_BINARY + THRESH_OTSU
+        _, thr = cv2.threshold(blur, <span class="num">0</span>, <span class="num">255</span>, flag)
+        thr = cv2.morphologyEx(thr, MORPH_CLOSE, k, <span class="num">2</span>)
+        thr = cv2.morphologyEx(thr, MORPH_OPEN,  k, <span class="num">1</span>)
+
+        cnts, _ = cv2.findContours(thr, RETR_EXTERNAL, ...)
+        boxes = [
+            cv2.boundingRect(c) <span class="kw">for</span> c <span class="kw">in</span> cnts
+            <span class="kw">if</span> MIN_AREA < cv2.contourArea(c) < MAX_AREA
+        ]
+        <span class="kw">if</span> len(boxes) > len(best_boxes):
+            best_boxes = boxes
+    <span class="kw">return</span> best_boxes</code></pre>
+      </div>
+    </div>
+  </div>
+
+  <!-- ────────────────────────────────────────────────────────
+       SLIDE 9 — MODULE D: YOLOV8
+  ──────────────────────────────────────────────────────────── -->
+  <div class="slide" data-mod="D">
+    <div class="label purple">Модуль D · YOLOv8</div>
+    <h2>Обучение детектора YOLOv8n</h2>
+    <div class="two-col">
+      <div>
+        <ul class="check" style="margin-bottom:24px">
+          <li><strong>YOLOv8n</strong> — самая лёгкая версия YOLO: ~3.2M параметров. "You Only Look Once" — весь кадр за один проход нейросети</li>
+          <li><strong>Стратифицированный сплит 80/20</strong> — в train и val одинаковая доля каждого класса</li>
+          <li><strong>100 эпох, patience=20</strong> — early stopping если 20 эпох без улучшения</li>
+          <li><strong>mAP50</strong> — основная метрика: mean Average Precision при IoU=0.5</li>
+          <li>Inference: <strong>5-10 мс на GPU</strong>, ~300 мс на CPU</li>
+          <li>Confusion matrix и кривые сохраняются автоматически в <span class="badge">output_detection/train/</span></li>
+        </ul>
+        <div class="grid grid-2" style="max-width:380px;gap:12px">
+          <div class="stat"><div class="val" style="color:var(--purple);font-size:36px">mAP50</div><div class="desc">IoU threshold = 0.5</div></div>
+          <div class="stat"><div class="val" style="color:var(--purple);font-size:36px">3.2M</div><div class="desc">параметров YOLOv8n</div></div>
+        </div>
+      </div>
+      <div>
+        <pre><code><span class="cm"># data.yaml для YOLOv8</span>
+<span class="str">path</span>: /abs/path/yolo_dataset
+<span class="str">train</span>: images/train
+<span class="str">val</span>:   images/val
+<span class="str">nc</span>: <span class="num">3</span>
+<span class="str">names</span>: [barley, buckwheat, rice]
+
+<span class="cm"># Обучение</span>
+model = YOLO(<span class="str">"yolov8n.pt"</span>)
+model.train(
+    data=str(yaml_path),
+    epochs=<span class="num">100</span>,
+    imgsz=<span class="num">640</span>,
+    batch=<span class="num">16</span>,
+    patience=<span class="num">20</span>,
+    device=<span class="str">"0"</span>,   <span class="cm"># GPU</span>
+)
+
+<span class="cm"># Оценка</span>
+metrics = model.val(data=str(yaml_path))
+print(metrics.box.map50)   <span class="cm"># mAP@50</span>
+print(metrics.box.map)     <span class="cm"># mAP@50:95</span></code></pre>
+      </div>
+    </div>
+  </div>
+
+  <!-- ────────────────────────────────────────────────────────
+       SLIDE 10 — MODULE D: ПРИЛОЖЕНИЕ
+  ──────────────────────────────────────────────────────────── -->
+  <div class="slide" data-mod="D">
+    <div class="label purple">Модуль D · Gradio App</div>
+    <h2>Веб-приложение реального времени</h2>
+    <div class="two-col">
+      <div>
+        <ul class="check" style="margin-bottom:24px">
+          <li><strong>Gradio 4+</strong> — два режима: Camera (streaming) и Upload Photo</li>
+          <li><strong>Streaming:</strong> кадры поступают каждые 0.5 с. Non-blocking lock — если модель занята, кадр просто пропускается (нет зависания)</li>
+          <li><strong>Upload:</strong> blocking lock с таймаутом 15 с — ждём результат</li>
+          <li><strong>RGB → BGR → RGB</strong> — Gradio даёт RGB-массив, OpenCV рисует в BGR, возвращаем RGB</li>
+          <li>Счётчик зёрен по классам, общий TOTAL в левом углу</li>
+          <li>Запуск: <span class="badge">cd app && python app.py</span> → localhost:7860</li>
+        </ul>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <span class="tag orange">barley</span>
+          <span class="tag blue">buckwheat</span>
+          <span class="tag green">rice</span>
+        </div>
+      </div>
+      <div>
+        <pre><code><span class="cm"># Non-blocking для streaming</span>
+_lock = threading.Lock()
+
+<span class="kw">def</span> <span class="fn">detect_stream</span>(frame, conf):
+    <span class="kw">if not</span> _lock.acquire(timeout=<span class="num">0</span>):
+        <span class="kw">return</span> frame, <span class="str">""</span>  <span class="cm"># пропуск кадра</span>
+    <span class="kw">try</span>:
+        res = model.predict(frame, conf=conf)
+    <span class="kw">finally</span>:
+        _lock.release()
+    <span class="kw">return</span> draw_boxes(res)
+
+<span class="cm"># Streaming с очередью Gradio</span>
+cam_in = gr.Image(
+    sources=[<span class="str">"webcam"</span>],
+    type=<span class="str">"numpy"</span>,
+    streaming=<span class="kw">True</span>
+)
+cam_in.stream(
+    detect_stream, [cam_in, conf],
+    [cam_out, stats],
+    stream_every=<span class="num">0.5</span>,
+    concurrency_limit=<span class="num">1</span>
+)
+demo.queue()
+demo.launch(server_port=<span class="num">7860</span>)</code></pre>
+      </div>
+    </div>
+  </div>
+
+  <!-- ────────────────────────────────────────────────────────
+       SLIDE 11 — ТЕХНОЛОГИЧЕСКИЙ СТЕК
+  ──────────────────────────────────────────────────────────── -->
+  <div class="slide">
+    <div class="label">Технологии</div>
+    <h2>Стек проекта</h2>
+    <div class="grid grid-4" style="max-width:960px">
+      <div class="card">
+        <div class="icon">🧠</div>
+        <div class="label">Модели</div>
+        <ul class="check">
+          <li><strong>CLIP</strong><br><small style="color:var(--ink2)">openai/clip-vit-base-patch32</small></li>
+          <li><strong>EfficientNet B3</strong><br><small style="color:var(--ink2)">timm, pretrained ImageNet</small></li>
+          <li><strong>YOLOv8n</strong><br><small style="color:var(--ink2)">ultralytics</small></li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="icon">📊</div>
+        <div class="label">ML / Анализ</div>
+        <ul class="check">
+          <li><strong>scikit-learn</strong><br><small style="color:var(--ink2)">KMeans, DBSCAN, Agglomerative, TSNE</small></li>
+          <li><strong>UMAP</strong><br><small style="color:var(--ink2)">3D визуализация кластеров</small></li>
+          <li><strong>PyTorch + timm</strong><br><small style="color:var(--ink2)">обучение EfficientNet</small></li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="icon">🔬</div>
+        <div class="label">CV / Разметка</div>
+        <ul class="check">
+          <li><strong>OpenCV</strong><br><small style="color:var(--ink2)">Otsu, морфология, контуры</small></li>
+          <li><strong>Pillow</strong><br><small style="color:var(--ink2)">загрузка и конвертация</small></li>
+          <li><strong>NumPy</strong><br><small style="color:var(--ink2)">операции с массивами</small></li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="icon">🌐</div>
+        <div class="label">Приложение</div>
+        <ul class="check">
+          <li><strong>Gradio 4+</strong><br><small style="color:var(--ink2)">streaming, queue, CSS override</small></li>
+          <li><strong>threading.Lock</strong><br><small style="color:var(--ink2)">non-blocking stream inference</small></li>
+          <li><strong>Plotly</strong><br><small style="color:var(--ink2)">3D визуализация UMAP</small></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- ────────────────────────────────────────────────────────
+       SLIDE 12 — КАК ЗАПУСТИТЬ
+  ──────────────────────────────────────────────────────────── -->
+  <div class="slide">
+    <div class="label">Запуск</div>
+    <h2>Что нужно для воспроизведения</h2>
+    <div class="two-col" style="align-items:start">
+      <div>
+        <h3 style="color:var(--accent);margin-bottom:12px">Модули A / B</h3>
+        <pre style="margin-bottom:20px"><code><span class="cm"># seeds/ — папки с классами</span>
+seeds/wheat/img001.jpg
+seeds/corn/img001.jpg
+
+pip install -r requirements.txt
+python module_a.py   <span class="cm"># → output_a/</span>
+python module_b.py   <span class="cm"># → output_b/ + best_model.pth</span></code></pre>
+
+        <h3 style="color:var(--purple);margin-bottom:12px">Модули C / D</h3>
+        <pre><code><span class="cm"># seeds_raw/ — 200 фото без разметки</span>
+seeds_raw/photo001.jpg
+seeds_raw/photo002.jpg
+
+<span class="cm"># Обучение (20-60 мин)</span>
+python seed_detector.py
+
+<span class="cm"># Приложение</span>
+cd seed_kit/app
+python app.py   <span class="cm"># → localhost:7860</span></code></pre>
+      </div>
+      <div>
+        <h3 style="margin-bottom:12px">Структура файлов</h3>
+        <pre><code>competition/
+├── module_a.py        <span class="cm"># Модуль A</span>
+├── module_b.py        <span class="cm"># Модуль B</span>
+├── requirements.txt
+└── seed_kit/
+    ├── seed_detector.py  <span class="cm"># Модули C+D</span>
+    ├── requirements.txt
+    ├── README.md
+    └── app/
+        ├── app.py        <span class="cm"># Gradio UI</span>
+        └── PROMPT.md</code></pre>
+        <div style="margin-top:16px">
+          <ul class="check">
+            <li><strong>Аппаратные требования:</strong> GPU желателен, работает и на CPU</li>
+            <li><strong>Python 3.10+</strong>, CUDA 11.8+ для GPU</li>
+            <li>CLIP кешируется при первом запуске (~600 МБ)</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ────────────────────────────────────────────────────────
+       SLIDE 13 — КЛЮЧЕВЫЕ РЕШЕНИЯ
+  ──────────────────────────────────────────────────────────── -->
+  <div class="slide">
+    <div class="label">Архитектурные решения</div>
+    <h2>Нетривиальные технические детали</h2>
+    <div class="grid grid-2" style="max-width:900px">
+      <div class="card">
+        <div class="label green">Авторазметка без разметчика</div>
+        <p>Ключевой инсайт: <strong>разделить задачу на две</strong>. CLIP отвечает на вопрос "что на фото?", а OpenCV — "где конкретно?". Комбинация двух принципиально разных подходов закрывает задачу без единой ручной аннотации.</p>
+      </div>
+      <div class="card">
+        <div class="label blue">Стратификация с fallback</div>
+        <p>Если CLIP классифицировал все 200 фото в один класс, <code>train_test_split(stratify=...)</code> упадёт с <code>ValueError</code>. Обёртка в try/except с повтором без стратификации спасает весь пайплайн.</p>
+      </div>
+      <div class="card">
+        <div class="label purple">Non-blocking streaming</div>
+        <p><code>lock.acquire(timeout=0)</code> для stream-колбэка вместо <code>timeout=15</code>. При медленном CPU новый кадр просто пропускается, очередь Gradio не переполняется, приложение не зависает.</p>
+      </div>
+      <div class="card">
+        <div class="label orange">RGB/BGR согласованность</div>
+        <p>Gradio передаёт numpy-массив в RGB. OpenCV рисует bbox в BGR-пространстве. Без явного <code>cvtColor(RGB→BGR)</code> перед рисованием цвета меняются местами: оранжевый barley становится синим.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ────────────────────────────────────────────────────────
+       SLIDE 14 — ИТОГИ
+  ──────────────────────────────────────────────────────────── -->
+  <div class="slide">
+    <div class="label">Итог</div>
+    <h2>Результаты соревнования</h2>
+    <div class="grid grid-4" style="max-width:900px;margin-bottom:32px">
+      <div class="stat">
+        <div class="val" style="color:var(--accent)">4</div>
+        <div class="desc">модуля от анализа до приложения</div>
+      </div>
+      <div class="stat">
+        <div class="val" style="color:var(--blue)">0</div>
+        <div class="desc">ручных аннотаций в модулях C/D</div>
+      </div>
+      <div class="stat">
+        <div class="val" style="color:var(--green)">3</div>
+        <div class="desc">алгоритма кластеризации сравнено</div>
+      </div>
+      <div class="stat">
+        <div class="val" style="color:var(--purple)">~5ms</div>
+        <div class="desc">inference YOLOv8n на GPU</div>
+      </div>
+    </div>
+    <div class="grid grid-3" style="max-width:900px">
+      <div class="card">
+        <div class="label">Модули A + B</div>
+        <p>Полный пайплайн анализа библиотеки: метаданные, CLIP-эмбеддинги, 3 алгоритма кластеризации, EfficientNet B3 с confusion matrix и ROC-AUC.</p>
+      </div>
+      <div class="card">
+        <div class="label green">Модуль C</div>
+        <p>Zero-shot авторазметка: CLIP классифицирует фото, OpenCV детектирует контуры зёрен. Датасет формируется автоматически в формат YOLO.</p>
+      </div>
+      <div class="card">
+        <div class="label purple">Модуль D</div>
+        <p>YOLOv8n детектор + Gradio приложение с real-time streaming через вебкамеру и загрузкой фото. Счётчик зёрен по классам.</p>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /deck -->
+
+<!-- Navigation -->
+<div class="nav">
+  <button id="btn-prev" onclick="go(-1)" disabled>←</button>
+  <span class="slide-counter" id="counter">1 / 14</span>
+  <button id="btn-next" onclick="go(1)">→</button>
+</div>
+
+<div class="key-hint">← → стрелки для навигации</div>
+
+<script>
+  const slides = document.querySelectorAll('.slide');
+  const total  = slides.length;
+  let cur = 0;
+
+  function go(d) {
+    slides[cur].classList.remove('active');
+    cur = Math.max(0, Math.min(total - 1, cur + d));
+    slides[cur].classList.add('active');
+    document.getElementById('counter').textContent = (cur + 1) + ' / ' + total;
+    document.getElementById('btn-prev').disabled = cur === 0;
+    document.getElementById('btn-next').disabled = cur === total - 1;
+    document.getElementById('progress').style.width = ((cur + 1) / total * 100) + '%';
+  }
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ') go(1);
+    if (e.key === 'ArrowLeft'  || e.key === 'ArrowUp')  go(-1);
+  });
+
+  // Init progress
+  document.getElementById('progress').style.width = (1 / total * 100) + '%';
+</script>
+</body>
+</html>
